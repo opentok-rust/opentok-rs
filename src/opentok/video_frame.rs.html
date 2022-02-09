@@ -580,11 +580,11 @@
             <span class="kw">return</span>;
         }
 
+        <span class="self">self</span>.<span class="ident">ptr</span>.<span class="ident">store</span>(<span class="ident">std::ptr::null_mut</span>(), <span class="ident">Ordering::Relaxed</span>);
+
         <span class="kw">unsafe</span> {
             <span class="ident">ffi::otc_video_frame_delete</span>(<span class="ident">ptr</span> <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="kw">_</span>);
         }
-
-        <span class="self">self</span>.<span class="ident">ptr</span>.<span class="ident">store</span>(<span class="ident">std::ptr::null_mut</span>(), <span class="ident">Ordering::Relaxed</span>);
     }
 }
 
