@@ -16,4 +16,4 @@ glib = "0.15"
 gst = { package = "gstreamer", version = "0.18" }
 gst_app = { package = "gstreamer-app", version = "0.18" }
 gst_video = { package = "gstreamer-video", version = "0.18" }
-opentok = { path = "../opentok" }
+opentok = { path = "../opentok", version = "1.0.3" }
