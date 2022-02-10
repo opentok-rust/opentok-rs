@@ -54,6 +54,9 @@
 <span id="53">53</span>
 <span id="54">54</span>
 <span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
 </pre><pre class="rust"><code><span class="attribute">#![<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
 
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">lazy_static</span>;
@@ -76,6 +79,9 @@
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::enums</span>::{<span class="ident">IntoResult</span>, <span class="ident">OtcError</span>, <span class="ident">OtcResult</span>};
 
 <span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">ptr</span>, <span class="ident">sync::atomic::AtomicBool</span>, <span class="ident">sync::atomic::Ordering</span>};
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;gstreamer-utils&quot;</span>)]</span>
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">utils</span>;
 
 <span class="kw">static</span> <span class="ident">INITIALIZED</span>: <span class="ident">AtomicBool</span> <span class="op">=</span> <span class="ident">AtomicBool::new</span>(<span class="bool-val">false</span>);
 
