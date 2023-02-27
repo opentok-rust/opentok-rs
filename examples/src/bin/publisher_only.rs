@@ -44,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
         })
         .on_connected(move |session| {
             println!("on_connected");
-            let _ = session.publish(&*_publisher.lock().unwrap());
+            let _ = session.publish(&_publisher.lock().unwrap());
         })
         .on_disconnected(|_| {
             println!("on_disconnected");
