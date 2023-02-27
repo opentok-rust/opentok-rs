@@ -33,10 +33,10 @@ impl Capturer {
         let caps = gst::Caps::builder_full()
             .structure(
                 gst::Structure::builder("video/x-raw")
-                    .field("format", &format.to_string())
-                    .field("width", &settings.width)
-                    .field("height", &settings.height)
-                    .field("framerate", &gst::Fraction::new(settings.fps, 1))
+                    .field("format", format.to_string())
+                    .field("width", settings.width)
+                    .field("height", settings.height)
+                    .field("framerate", gst::Fraction::new(settings.fps, 1))
                     .build(),
             )
             .build();
@@ -95,10 +95,10 @@ impl AudioCapturer {
         let caps = gst::Caps::builder_full()
             .structure(
                 gst::Structure::builder("audio/x-raw")
-                    .field("format", &"S16LE")
-                    .field("layout", &"interleaved")
-                    .field("rate", &settings.sampling_rate)
-                    .field("channels", &settings.number_of_channels)
+                    .field("format", "S16LE")
+                    .field("layout", "interleaved")
+                    .field("rate", settings.sampling_rate)
+                    .field("channels", settings.number_of_channels)
                     .build(),
             )
             .build();

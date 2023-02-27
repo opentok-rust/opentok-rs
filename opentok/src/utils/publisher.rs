@@ -124,7 +124,7 @@ impl Publisher {
         let publisher_ = publisher.clone();
         let session_callbacks = SessionCallbacks::builder()
             .on_connected(move |session| {
-                let _ = session.publish(&*publisher_.lock().unwrap());
+                let _ = session.publish(&publisher_.lock().unwrap());
             })
             .on_error(|_, error, _| {
                 eprintln!("on_error {:?}", error);
