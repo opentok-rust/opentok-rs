@@ -25,7 +25,12 @@ jobs:
         tar xf libopentok_linux_llvm_x86_64-2.19.1
         rm -f libopentok_linux_llvm_x86_64-2.19.1
         sudo apt update
-        sudo apt -y install clang libc++-dev libc++abi-dev libgstreamer-plugins-base1.0-dev
+        sudo apt -y install clang libc++-dev libc++abi-dev python3-pip ninja-build build-essential flex bison
+        sudo python3 -m pip install meson
+        git clone https://gitlab.freedesktop.org/gstreamer/gstreamer.git
+        cd gstreamer/
+        meson build/ --auto-features=disabled --prefix=/usr
+        sudo ninja -C build install
     - name: Build
       run: cargo build --verbose
     - name: Run tests
