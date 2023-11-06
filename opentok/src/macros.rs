@@ -283,6 +283,45 @@ macro_rules! callback_setter_with_return {
     };
 }
 
+macro_rules! option_callback_call {
+    ($fn_name:ident) => {
+        fn $fn_name(&self) {
+            if let Ok(l) = self.callbacks.try_lock() {
+                if let Some(callbacks) = l.as_ref() {
+                    callbacks.$fn_name(self);
+                }
+            }
+        }
+    };
+    ($fn_name:ident, $ty1:ty) => {
+        fn $fn_name(&self, arg1: $ty1) {
+            if let Ok(l) = self.callbacks.try_lock() {
+                if let Some(callbacks) = l.as_ref() {
+                    callbacks.$fn_name(self, arg1.into());
+                }
+            }
+        }
+    };
+    ($fn_name:ident, $ty1:ty, $ty2:ty) => {
+        fn $fn_name(&self, arg1: $ty1, arg2: $ty2) {
+            if let Ok(l) = self.callbacks.try_lock() {
+                if let Some(callbacks) = l.as_ref() {
+                    callbacks.$fn_name(self, arg1.into(), arg2.into());
+                }
+            }
+        }
+    };
+    ($fn_name:ident, $ty1:ty, $ty2:ty, $ty3:ty) => {
+        fn $fn_name(&self, arg1: $ty1, arg2: $ty2, arg3: $ty3) {
+            if let Ok(callbacks) = self.callbacks.try_lock() {
+                if let Some(callbacks) = callbacks.as_ref() {
+                    callbacks.$fn_name(self, arg1.into(), arg2.into(), arg3.into());
+                }
+            }
+        }
+    };
+}
+
 macro_rules! callback_call {
     ($fn_name:ident) => {
         fn $fn_name(&self) {

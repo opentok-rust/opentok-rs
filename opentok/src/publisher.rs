@@ -202,40 +202,149 @@ impl PublisherCallbacksBuilder {
 }
 
 #[derive(Clone)]
+pub struct PublisherSettings(*mut ffi::otc_publisher_settings);
+
+#[derive(Default)]
+pub struct PublisherSettingsBuilder {
+    name: Option<String>,
+    audio_track: Option<bool>,
+    video_track: Option<bool>,
+    stereo: Option<bool>,
+}
+
+impl PublisherSettingsBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn name(self, name: &str) -> PublisherSettingsBuilder {
+        Self {
+            name: Some(name.to_string()),
+            ..self
+        }
+    }
+
+    pub fn audio_track(self, audio_track: bool) -> PublisherSettingsBuilder {
+        Self {
+            audio_track: Some(audio_track),
+            ..self
+        }
+    }
+
+    pub fn video_track(self, video_track: bool) -> PublisherSettingsBuilder {
+        Self {
+            video_track: Some(video_track),
+            ..self
+        }
+    }
+
+    pub fn stereo(self, stereo: bool) -> PublisherSettingsBuilder {
+        Self {
+            stereo: Some(stereo),
+            ..self
+        }
+    }
+
+    pub fn build(self) -> PublisherSettings {
+        PublisherSettings(unsafe {
+            let settings = ffi::otc_publisher_settings_new();
+
+            if let Some(name) = self.name {
+                let name = CString::new(name).unwrap_or_default();
+                ffi::otc_publisher_settings_set_name(settings, name.as_ptr());
+            }
+
+            if let Some(audio_track) = self.audio_track {
+                ffi::otc_publisher_settings_set_audio_track(settings, audio_track.into());
+            }
+
+            if let Some(video_track) = self.video_track {
+                ffi::otc_publisher_settings_set_video_track(settings, video_track.into());
+            }
+
+            if let Some(stereo) = self.stereo {
+                ffi::otc_publisher_settings_set_stereo(settings, stereo.into());
+            }
+
+            settings
+        })
+    }
+}
+
+#[derive(Clone)]
 pub struct Publisher {
     ptr: Arc<AtomicPtr<*const ffi::otc_publisher>>,
     capturer: Option<VideoCapturer>,
-    callbacks: Arc<Mutex<PublisherCallbacks>>,
+    callbacks: Arc<Mutex<Option<PublisherCallbacks>>>,
     publishing: Arc<AtomicBool>,
 }
 
 unsafe impl Sync for Publisher {}
 unsafe impl Send for Publisher {}
 
+fn make_ffi_callback() -> ffi::otc_publisher_callbacks {
+    ffi::otc_publisher_callbacks {
+        on_stream_created: Some(on_stream_created),
+        on_stream_destroyed: Some(on_stream_destroyed),
+        on_render_frame: Some(on_render_frame),
+        on_audio_level_updated: Some(on_audio_level_updated),
+        on_audio_stats: None,
+        on_video_stats: None,
+        on_error: Some(on_error),
+        user_data: std::ptr::null_mut(),
+        reserved: std::ptr::null_mut(),
+    }
+}
+
 impl Publisher {
+    pub fn new_with_settings(
+        callbacks: Option<PublisherCallbacks>,
+        publisher_settings: PublisherSettings,
+    ) -> Self {
+        let ffi_callbacks = if callbacks.is_some() {
+            make_ffi_callback()
+        } else {
+            ffi::otc_publisher_callbacks {
+                on_stream_created: None,
+                on_stream_destroyed: None,
+                on_render_frame: None,
+                on_audio_level_updated: None,
+                on_audio_stats: None,
+                on_video_stats: None,
+                on_error: None,
+                user_data: std::ptr::null_mut(),
+                reserved: std::ptr::null_mut(),
+            }
+        };
+
+        let ptr =
+            unsafe { ffi::otc_publisher_new_with_settings(&ffi_callbacks, publisher_settings.0) };
+        let publisher = Self {
+            ptr: Arc::new(AtomicPtr::new(ptr as *mut _)),
+            capturer: None,
+            callbacks: Arc::new(Mutex::new(callbacks)),
+            publishing: Default::default(),
+        };
+        INSTANCES
+            .lock()
+            .unwrap()
+            .insert(ptr as usize, publisher.clone());
+        publisher
+    }
+
     pub fn new(name: &str, capturer: Option<VideoCapturer>, callbacks: PublisherCallbacks) -> Self {
         let name = CString::new(name).unwrap_or_default();
         let capturer_callbacks = capturer.clone().map_or(std::ptr::null(), |mut capturer| {
             &*capturer.callbacks().lock().unwrap() as *const ffi::otc_video_capturer_callbacks
         });
 
-        let ffi_callbacks = ffi::otc_publisher_callbacks {
-            on_stream_created: Some(on_stream_created),
-            on_stream_destroyed: Some(on_stream_destroyed),
-            on_render_frame: Some(on_render_frame),
-            on_audio_level_updated: Some(on_audio_level_updated),
-            on_audio_stats: None,
-            on_video_stats: None,
-            on_error: Some(on_error),
-            user_data: std::ptr::null_mut(),
-            reserved: std::ptr::null_mut(),
-        };
+        let ffi_callbacks = make_ffi_callback();
         let ptr =
             unsafe { ffi::otc_publisher_new(name.as_ptr(), capturer_callbacks, &ffi_callbacks) };
         let publisher = Self {
             ptr: Arc::new(AtomicPtr::new(ptr as *mut _)),
             capturer,
-            callbacks: Arc::new(Mutex::new(callbacks)),
+            callbacks: Arc::new(Mutex::new(Some(callbacks))),
             publishing: Default::default(),
         };
         INSTANCES
@@ -249,20 +358,24 @@ impl Publisher {
         self.ptr.load(Ordering::Relaxed) as *const _
     }
 
-    callback_call!(on_render_frame, *const ffi::otc_video_frame);
-    callback_call!(on_audio_level_updated, f32);
+    option_callback_call!(on_render_frame, *const ffi::otc_video_frame);
+    option_callback_call!(on_audio_level_updated, f32);
 
     fn on_stream_created(&self, stream: *const ffi::otc_stream) {
         self.publishing.store(true, Ordering::Relaxed);
-        if let Ok(callbacks) = self.callbacks.try_lock() {
-            callbacks.on_stream_created(self, stream.into());
+        if let Ok(l) = self.callbacks.try_lock() {
+            if let Some(callbacks) = l.as_ref() {
+                callbacks.on_stream_created(self, stream.into());
+            }
         }
     }
 
     fn on_stream_destroyed(&self, stream: *const ffi::otc_stream) {
         self.publishing.store(false, Ordering::Relaxed);
-        if let Ok(callbacks) = self.callbacks.try_lock() {
-            callbacks.on_stream_destroyed(self, stream.into());
+        if let Ok(l) = self.callbacks.try_lock() {
+            if let Some(callbacks) = l.as_ref() {
+                callbacks.on_stream_destroyed(self, stream.into());
+            }
         }
     }
 
@@ -271,12 +384,14 @@ impl Publisher {
             return;
         }
         let error_string = unsafe { CStr::from_ptr(error_string) };
-        if let Ok(callbacks) = self.callbacks.try_lock() {
-            callbacks.on_error(
-                self,
-                error_string.to_str().unwrap_or_default(),
-                error_code.into(),
-            );
+        if let Ok(l) = self.callbacks.try_lock() {
+            if let Some(callbacks) = l.as_ref() {
+                callbacks.on_error(
+                    self,
+                    error_string.to_str().unwrap_or_default(),
+                    error_code.into(),
+                );
+            }
         }
     }
 

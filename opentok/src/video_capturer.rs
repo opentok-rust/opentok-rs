@@ -67,7 +67,8 @@ ffi_callback_with_return_user_data!(
 );
 
 type VideoCapturerInit = Option<Box<dyn Fn(&VideoCapturer) -> OtcResult + Send + Sync + 'static>>;
-type VideoCapturerDestroy = Option<Box<dyn Fn(&VideoCapturer) -> OtcResult + Send + Sync + 'static>>;
+type VideoCapturerDestroy =
+    Option<Box<dyn Fn(&VideoCapturer) -> OtcResult + Send + Sync + 'static>>;
 type VideoCapturerStart = Option<Box<dyn Fn(&VideoCapturer) -> OtcResult + Send + Sync + 'static>>;
 type VideoCapturerStop = Option<Box<dyn Fn(&VideoCapturer) -> OtcResult + Send + Sync + 'static>>;
 
