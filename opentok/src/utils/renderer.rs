@@ -16,7 +16,7 @@ impl Renderer {
     pub fn new() -> Result<Self, Error> {
         gst::init()?;
 
-        let pipeline = gst::Pipeline::new(None);
+        let pipeline = gst::Pipeline::new();
         let video_src = gst::ElementFactory::make("appsrc")
             .build()
             .map_err(|_| MissingElement("appsrc"))?;
@@ -49,12 +49,7 @@ impl Renderer {
         pipeline.set_state(gst::State::Playing)?;
 
         if cfg!(debug_assertions) {
-            let bin = pipeline.clone().upcast::<gst::Bin>();
-            gst::debug_bin_to_dot_file_with_ts(
-                &bin,
-                gst::DebugGraphDetails::all(),
-                "RendererPipeline",
-            );
+            pipeline.debug_to_dot_file_with_ts(gst::DebugGraphDetails::all(), "RendererPipeline");
         }
 
         Ok(Self {
