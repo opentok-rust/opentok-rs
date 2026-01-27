@@ -41,7 +41,7 @@ impl Capturer {
             )
             .build();
 
-        let pipeline = gst::Pipeline::new(None);
+        let pipeline = gst::Pipeline::new();
         let src = gst::ElementFactory::make("videotestsrc")
             .build()
             .map_err(|_| MissingElement("videotestsrc"))?;
@@ -58,12 +58,7 @@ impl Capturer {
 
         pipeline.set_state(gst::State::Playing)?;
 
-        let bin_ref = pipeline.upcast_ref::<gst::Bin>();
-        gst::debug_bin_to_dot_file_with_ts(
-            bin_ref,
-            gst::DebugGraphDetails::all(),
-            "CapturerPipeline",
-        );
+        pipeline.debug_to_dot_file_with_ts(gst::DebugGraphDetails::all(), "CapturerPipeline");
 
         Ok(Self { pipeline, sink })
     }
@@ -104,7 +99,7 @@ impl AudioCapturer {
             )
             .build();
 
-        let pipeline = gst::Pipeline::new(None);
+        let pipeline = gst::Pipeline::new();
         let src = gst::ElementFactory::make("audiotestsrc")
             .build()
             .map_err(|_| MissingElement("audiotestsrc"))?;
@@ -123,12 +118,7 @@ impl AudioCapturer {
 
         pipeline.set_state(gst::State::Playing)?;
 
-        let bin_ref = pipeline.upcast_ref::<gst::Bin>();
-        gst::debug_bin_to_dot_file_with_ts(
-            bin_ref,
-            gst::DebugGraphDetails::all(),
-            "AudioCapturerPipeline",
-        );
+        pipeline.debug_to_dot_file_with_ts(gst::DebugGraphDetails::all(), "AudioCapturerPipeline");
 
         Ok(Self {
             pipeline,
