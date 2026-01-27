@@ -49,8 +49,9 @@ impl Capturer {
             .build()
             .map_err(|_| MissingElement("capsfilter"))?;
         capsfilter.set_property("caps", &caps);
-        let sink =
-            gst::ElementFactory::make("appsink").build().map_err(|_| MissingElement("appsink"))?;
+        let sink = gst::ElementFactory::make("appsink")
+            .build()
+            .map_err(|_| MissingElement("appsink"))?;
 
         pipeline.add_many(&[&src, &capsfilter, &sink])?;
         gst::Element::link_many(&[&src, &capsfilter, &sink])?;
@@ -104,13 +105,16 @@ impl AudioCapturer {
             .build();
 
         let pipeline = gst::Pipeline::new(None);
-        let src = gst::ElementFactory::make("audiotestsrc").build()
+        let src = gst::ElementFactory::make("audiotestsrc")
+            .build()
             .map_err(|_| MissingElement("audiotestsrc"))?;
-        let capsfilter = gst::ElementFactory::make("capsfilter").build()
+        let capsfilter = gst::ElementFactory::make("capsfilter")
+            .build()
             .map_err(|_| MissingElement("capsfilter"))?;
         capsfilter.set_property("caps", &caps);
-        let sink =
-            gst::ElementFactory::make("appsink").build().map_err(|_| MissingElement("appsink"))?;
+        let sink = gst::ElementFactory::make("appsink")
+            .build()
+            .map_err(|_| MissingElement("appsink"))?;
 
         let samples_per_buffer = (settings.sampling_rate / 100) * settings.number_of_channels;
         src.set_property("samplesperbuffer", samples_per_buffer);

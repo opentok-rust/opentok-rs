@@ -6,10 +6,10 @@ use crate::publisher::{Publisher as OpenTokPublisher, PublisherCallbacks};
 use crate::session::{Session, SessionCallbacks};
 use crate::video_capturer::{VideoCapturer, VideoCapturerCallbacks, VideoCapturerSettings};
 use crate::video_frame::VideoFrame;
+use gst::glib;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use gst::glib;
 
 type Callback = Box<dyn Fn(&Publisher, String) + Send + Sync + 'static>;
 
