@@ -5,8 +5,8 @@ use crate::audio_device::AudioDevice;
 use crate::session::{Session, SessionCallbacks};
 use crate::subscriber::{Subscriber as OpenTokSubscriber, SubscriberCallbacks};
 use crate::video_frame::FramePlane;
-use std::sync::{Arc, Mutex};
 use gst::glib;
+use std::sync::{Arc, Mutex};
 
 pub struct Subscriber {
     credentials: Credentials,
