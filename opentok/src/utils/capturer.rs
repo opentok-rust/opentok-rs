@@ -53,8 +53,8 @@ impl Capturer {
             .build()
             .map_err(|_| MissingElement("appsink"))?;
 
-        pipeline.add_many(&[&src, &capsfilter, &sink])?;
-        gst::Element::link_many(&[&src, &capsfilter, &sink])?;
+        pipeline.add_many([&src, &capsfilter, &sink])?;
+        gst::Element::link_many([&src, &capsfilter, &sink])?;
 
         pipeline.set_state(gst::State::Playing)?;
 
@@ -113,8 +113,8 @@ impl AudioCapturer {
 
         let samples_per_buffer = (settings.sampling_rate / 100) * settings.number_of_channels;
         src.set_property("samplesperbuffer", samples_per_buffer);
-        pipeline.add_many(&[&src, &capsfilter, &sink])?;
-        gst::Element::link_many(&[&src, &capsfilter, &sink])?;
+        pipeline.add_many([&src, &capsfilter, &sink])?;
+        gst::Element::link_many([&src, &capsfilter, &sink])?;
 
         pipeline.set_state(gst::State::Playing)?;
 

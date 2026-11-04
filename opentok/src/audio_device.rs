@@ -127,6 +127,8 @@ impl AudioDevice {
             render_thread_running: Default::default(),
             render_settings: Default::default(),
             on_audio_sample_callbacks: Default::default(),
+            // `AudioDevice` is `Send + Sync` through the unsafe impls above.
+            #[allow(clippy::arc_with_non_send_sync)]
             ffi_callbacks: Arc::new(Mutex::new(ffi::otc_audio_device_callbacks {
                 init: None,
                 destroy: None,

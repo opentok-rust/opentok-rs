@@ -27,8 +27,8 @@ impl Renderer {
             .build()
             .map_err(|_| MissingElement("autovideosink"))?;
 
-        pipeline.add_many(&[&video_src, &videoconvert, &sink])?;
-        gst::Element::link_many(&[&video_src, &videoconvert, &sink])?;
+        pipeline.add_many([&video_src, &videoconvert, &sink])?;
+        gst::Element::link_many([&video_src, &videoconvert, &sink])?;
 
         let audio_src = gst::ElementFactory::make("appsrc")
             .build()
@@ -43,8 +43,8 @@ impl Renderer {
             .build()
             .map_err(|_| MissingElement("autoaudiosink"))?;
 
-        pipeline.add_many(&[&audio_src, &audioresample, &audioconvert, &sink])?;
-        gst::Element::link_many(&[&audio_src, &audioresample, &audioconvert, &sink])?;
+        pipeline.add_many([&audio_src, &audioresample, &audioconvert, &sink])?;
+        gst::Element::link_many([&audio_src, &audioresample, &audioconvert, &sink])?;
 
         pipeline.set_state(gst::State::Playing)?;
 

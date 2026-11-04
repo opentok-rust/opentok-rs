@@ -9,6 +9,7 @@
 #ifndef MEDIA_UTILS_H
 #define MEDIA_UTILS_H
 
+#include "base.h"
 #include "config.h"
 
 OTC_BEGIN_DECL
@@ -16,8 +17,10 @@ OTC_BEGIN_DECL
 /** Video codec type enum.
  */
 enum otc_video_codec_type {
-  OTC_VIDEO_CODEC_VP8 = 1, /**< Video codec type for VP8. */
-  OTC_VIDEO_CODEC_H264 = 2 /**< Video codec type for H.264. */
+  OTC_VIDEO_CODEC_UNKNOWN = 0, /**< Video codec unknown (used for stats reports) */
+  OTC_VIDEO_CODEC_VP8 = 1,     /**< Video codec type for VP8. */
+  OTC_VIDEO_CODEC_H264 = 2,    /**< Video codec type for H.264. */
+  OTC_VIDEO_CODEC_VP9 = 3      /**< Video codec type for VP9. */
 };
 
 /** Video codec type type definition.

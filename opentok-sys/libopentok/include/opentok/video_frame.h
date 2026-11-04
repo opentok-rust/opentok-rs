@@ -16,10 +16,6 @@
 
 OTC_BEGIN_DECL
 
-/** Max size for an array containing metadata items in a video frame.
- */
-#define OTC_VIDEO_FRAME_METADATA_MAX_SIZE 32
-
 /** Video frame type definition.
  */
 typedef struct otc_video_frame otc_video_frame;
@@ -61,11 +57,12 @@ enum otc_video_frame_plane {
   OTC_VIDEO_FRAME_PLANE_U = 1, /**< Video frame plane U enum value. */
   OTC_VIDEO_FRAME_PLANE_V = 2, /**< Video frame plane V enum value. */
 
-  OTC_VIDEO_FRAME_PLANE_PACKED = 3, /**< Video frame plane packed  enum value. */
+  OTC_VIDEO_FRAME_PLANE_PACKED =
+      0, /**< Video frame plane packed  enum value. */
   OTC_VIDEO_FRAME_PLANE_UV_INTERLEAVED =
-      4, /**< Video frame plane UV interleaved enum value. */
+      1, /**< Video frame plane UV interleaved enum value. */
   OTC_VIDEO_FRAME_PLANE_VU_INTERLEAVED =
-      5, /**< Video frame plane VU interleaved enum value. */
+      1, /**< Video frame plane VU interleaved enum value. */
 };
 
 /** Defines a struct containing callback functions for a video frame plane
@@ -123,6 +120,15 @@ struct otc_video_frame_planar_memory_callbacks {
  */
 typedef void (*otc_video_frame_memory_release_callback)(const uint8_t* buffer,
                                                         void* arg);
+
+/**
+ * @brief The callback that will perform the custom transformation.
+ *
+ * <b>Note:</b> This functionality only applies to the Vonage Video API macOS SDK.
+ * It does not work in the Vonage Video API Linux SDK.
+ */
+typedef void (*video_transform_callback)(void* user_data,
+                                         struct otc_video_frame* frame);
 
 OTC_DECL(void*)
 otc_video_frame_get_native_handle(const otc_video_frame* frame);
@@ -378,7 +384,7 @@ otc_video_frame_get_buffer(const otc_video_frame* frame);
 OTC_DECL(size_t) otc_video_frame_get_buffer_size(const otc_video_frame* frame);
 
 /**
-    Gets a video frame timestamp.
+    Gets a video frame timestamp in milliseconds since epoch time.
 
     @param frame A pointer to the video frame instance.
     @return The video frame timestamp.
@@ -386,7 +392,7 @@ OTC_DECL(size_t) otc_video_frame_get_buffer_size(const otc_video_frame* frame);
 OTC_DECL(int64_t) otc_video_frame_get_timestamp(const otc_video_frame* frame);
 
 /**
-    Sets the timestamp for a video frame.
+    Sets the timestamp for a video frame in milliseconds since epoch time.
 
     @param frame A pointer to the video frame instance.
     @param timestamp The timestamp value.
@@ -574,32 +580,6 @@ OTC_DECL(otc_bool) otc_video_frame_is_packed(const otc_video_frame* frame);
     @return A Boolean value with the result.
  */
 OTC_DECL(otc_bool) otc_video_frame_is_contiguous(const otc_video_frame* frame);
-
-/**
-    Sets the metadata associated with a video frame.
-
-    @param frame A pointer to the video frame instance.
-    @param data A pointer to the metadata buffer to be copied into the frame.
-    @param size The size of the metadata buffer to be copied.
-    @return A return value indicating either error or success.
-    @see otc_error_code
- */
-OTC_DECL(otc_status)
-otc_video_frame_set_metadata(otc_video_frame* frame,
-                             const uint8_t* data,
-                             size_t size);
-
-/**
-    Gets the metadata associated with the video frame.
-
-    @param frame A pointer to the video frame instance.
-    @param size The size of the metadata buffer associated with this frame.
-    @return A pointer to the internal metadata buffer in the video frame or a
-            null pointer if there is no metadata associated with it. This
-            pointer will get invalidated after destroying the frame.
- */
-OTC_DECL(const uint8_t*)
-otc_video_frame_get_metadata(const otc_video_frame* frame, size_t* size);
 
 OTC_END_DECL
 

@@ -387,18 +387,13 @@ impl SessionCallbacksBuilder {
 }
 
 /// Enumeration of all possible connection states.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 enum ConnectionState {
     Connected,
     Connecting,
+    #[default]
     Disconnected,
     Disconnecting,
-}
-
-impl Default for ConnectionState {
-    fn default() -> Self {
-        Self::Disconnected
-    }
 }
 
 #[derive(Clone)]
@@ -418,7 +413,7 @@ impl Session {
     /// * api_key: Your OpenTok API key. You can get it from <https://tokbox.com/account>
     /// * session_id: The identifier of the session.
     /// * callbacks: An instance of SessionCallbacks containing the handlers for events
-    /// related to the session.
+    ///   related to the session.
     pub fn new(
         api_key: &str,
         session_id: &str,
@@ -438,12 +433,14 @@ impl Session {
             on_stream_dropped: Some(on_stream_dropped),
             on_stream_has_audio_changed: Some(on_stream_has_audio_changed),
             on_stream_has_video_changed: Some(on_stream_has_video_changed),
+            on_stream_has_captions_changed: None,
             on_stream_video_dimensions_changed: Some(on_stream_video_dimensions_changed),
             on_stream_video_type_changed: Some(on_stream_video_type_changed),
             on_signal_received: Some(on_signal_received),
             on_archive_started: Some(on_archive_started),
             on_archive_stopped: Some(on_archive_stopped),
             on_error: Some(on_error),
+            on_mute_forced: None,
             user_data: std::ptr::null_mut(),
             reserved: std::ptr::null_mut(),
         };
@@ -473,7 +470,7 @@ impl Session {
     /// Connects a client to an OpenTok session.
     ///
     /// * token - The client token for connecting to the session. Check
-    /// <https://tokbox.com/developer/guides/create-token/>
+    ///   <https://tokbox.com/developer/guides/create-token/>
     pub fn connect(&self, token: &str) -> OtcResult {
         let connection_state = self.connection_state.lock().unwrap().clone();
         if connection_state == ConnectionState::Connected
@@ -672,7 +669,7 @@ impl Session {
                 self,
                 type_.to_str().unwrap_or_default(),
                 signal.to_str().unwrap_or_default(),
-                (connection as *const ffi::otc_connection).into(),
+                connection.into(),
             );
         }
     }

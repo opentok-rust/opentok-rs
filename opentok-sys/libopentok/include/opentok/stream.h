@@ -83,6 +83,15 @@ OTC_DECL(otc_bool) otc_stream_has_audio_track(const otc_stream* stream);
 OTC_DECL(otc_bool) otc_stream_has_audio(const otc_stream* stream);
 
 /**
+    Checks whether this stream is currently publishing captions or not.
+
+    @param stream The stream being queried.
+    @return Return value indicating whether this stream is publishing captions or
+    not.
+ */
+OTC_DECL(otc_bool) otc_stream_has_captions(const otc_stream* stream);
+
+/**
     Makes a copy of a stream.
 
     @param stream The stream to be copied.
@@ -99,18 +108,42 @@ OTC_DECL(otc_stream*) otc_stream_copy(const otc_stream* stream);
 OTC_DECL(otc_status) otc_stream_delete(otc_stream* stream);
 
 /**
-    Returns the width, in pixels, of the video stream.
+    Returns the width of the publisher's capturer target resolution, in pixels, as last
+    signaled to the session. This value is broadcast to all session participants and is
+    readable on both the publishing and subscribing clients.
+
+    Note: This represents the publisher's capturer target resolution, not the resolution
+    actually encoded or received by a subscriber. The publisher may encode at a lower
+    resolution due to bandwidth or CPU constraints.
+  .
+    For streams published using the scalable video feature, this is set to the width of
+    the maximum resolution available for the stream. For more information on scalable video,
+    see the documentation for the
+    <a href="https://tokbox.com/developer/guides/create-session/#media-mode">OpenTok
+    Media Router</a>.
 
     @param stream The stream being queried.
-    @return The width, in pixels, of the video stream.
+    @return The width, in pixels, of the publisher's capturer target resolution.
  */
 OTC_DECL(int) otc_stream_get_video_width(const otc_stream* stream);
 
 /**
-    Returns the height, in pixels, of the video stream.
+    Returns the height of the publisher's capturer target resolution, in pixels, as last
+    signaled to the session. This value is broadcast to all session participants and is
+    readable on both the publishing and subscribing clients.
+
+    Note: This represents the publisher's capturer target resolution, not the resolution
+    actually encoded or received by a subscriber. The publisher may encode at a lower
+    resolution due to bandwidth or CPU constraints.
+
+    For streams published using the scalable video feature, this is set to the height of
+    the maximum resolution available for the stream. For more information on scalable video,
+    see the documentation for the
+    <a href="https://tokbox.com/developer/guides/create-session/#media-mode">OpenTok
+    Media Router</a>.
 
     @param stream The stream being queried.
-    @return The height, in pixels, of the video stream.
+    @return The height, in pixels, of the publisher's capturer target resolution.
  */
 OTC_DECL(int) otc_stream_get_video_height(const otc_stream* stream);
 

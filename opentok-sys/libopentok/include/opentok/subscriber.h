@@ -7,9 +7,12 @@
 #ifndef SUBSCRIBER_H
 #define SUBSCRIBER_H
 
+#include "audio_data.h"
+#include "base.h"
 #include "config.h"
-#include "stream.h"
 #include "error.h"
+#include "media_utils.h"
+#include "stream.h"
 #include "video_frame.h"
 
 OTC_BEGIN_DECL
@@ -26,22 +29,7 @@ typedef struct otc_session otc_session;
  */
 typedef struct otc_subscriber otc_subscriber;
 
-/** Enum for reasons for a video to be started, stopped, resumed, etc.
- */
-enum otc_video_reason {
-  OTC_VIDEO_REASON_PUBLISH_VIDEO =
-      1, /**< The client publishing the stream stopped streaming video. */
-  OTC_VIDEO_REASON_SUBSCRIBE_TO_VIDEO =
-      2, /**< The local client stopped subscribing to video. */
-  OTC_VIDEO_REASON_QUALITY = 3, /**< The video event was caused by a change to
-                                   the video stream quality. */
-  OTC_VIDEO_REASON_CODEC_NOT_SUPPORTED = 4 /**< The video event was caused when
-    video in the subscriber stream was disabled because the stream uses a video
-    codec that is not supported on the device. */
-};
-
 /** Error code enumeration for OpenTok subscribers.
-
     This enumeration represents several error codes associated with a
    subscriber.
  */
@@ -58,6 +46,13 @@ enum otc_subscriber_error_code {
   OTC_SUBSCRIBER_TIMED_OUT =
       1542, /**< Timeout while attempting to subscribe. */
   OTC_SUBSCRIBER_WEBRTC_ERROR = 1600, /**< Subscriber WebRTC failure. */
+  OTC_SUBSCRIBER_PEER_CONNECTION_NOT_CONNECTED =
+      1606, /**< The peer connection is not yet created or connected. */
+  OTC_SUBSCRIBER_DECRYPTION_INTERNAL_ERROR =
+      6002, /**< Internal error while decrypting a packet */
+  OTC_SUBSCRIBER_ENCRYPTION_SECRET_MISMATCH =
+      6003, /**< Secret mismatch while decrypting a packet */
+  OTC_SUBSCRIBER_DECRYPTION_UNSUPPORTED_CODEC = 6006,  /**< Unsupported media codec for decryption */
 };
 
 /**
@@ -67,13 +62,38 @@ enum otc_subscriber_error_code {
 struct otc_subscriber_audio_stats {
   uint64_t packets_lost;     /**< The total number of audio packets lost by the
                                 subscriber. */
-  uint64_t packets_received; /**< The total number of audio packets lost by the
+  uint64_t packets_received; /**< The total number of packets received by the
                                 subscriber. */
   uint64_t bytes_received; /**< The total number of audio bytes received by the
                               subscriber. */
   float audio_level;       /**< The audio level value, from 0 to 1.0. */
   double timestamp; /**< The timestamp, in milliseconds since the Unix epoch,
                        for when these stats were gathered. */
+  OPENTOK_DEPRECATED("Use otc_subscriber_media_link_stats instead")
+  int64_t sender_connection_max_allocated_bitrate; /**< @deprecated Use
+                                        otc_subscriber_media_link_stats instead,
+                                        which provides complete network metrics
+                                        including visibility into the remote
+                                        publisher's transport performance.
+                                        The maximum bitrate that can be
+                                        estimated for the sender connection,
+                                        in bps (bits per second). If no data
+                                        is available, then -1 is returned.
+                                        Currently, this feature only supports
+                                        calls with more than two participants. */
+  OPENTOK_DEPRECATED("Use otc_subscriber_media_link_stats instead")
+  int64_t sender_connection_estimated_bandwidth;   /**< @deprecated Use
+                                                  otc_subscriber_media_link_stats instead,
+                                                  which provides complete network metrics
+                                                  including visibility into the remote
+                                                  publisher's transport performance.
+                                                  The current bandwidth estimation
+                                                  for the sender connection, in bps
+                                                  (bits per second). If no data is
+                                                  available, then -1 is returned.
+                                                  Currently, this feature only
+                                                  supports calls with more than two
+                                                  participants. */
 };
 
 /**
@@ -93,6 +113,59 @@ struct otc_subscriber_video_stats {
                               subscriber. */
   double timestamp; /**< The timestamp, in milliseconds since the Unix epoch,
                        for when these stats were gathered. */
+  OPENTOK_DEPRECATED("Use otc_subscriber_media_link_stats instead")
+  int64_t sender_connection_max_allocated_bitrate; /**< @deprecated Use
+                                            otc_subscriber_media_link_stats instead,
+                                            which provides complete network metrics
+                                            including visibility into the remote
+                                            publisher's transport performance.
+                                            The maximum bitrate that can be
+                                            estimated for the sender connection.
+                                            If no data is available, then -1 is
+                                            returned. Currently, this feature only
+                                            supports calls with more than two
+                                            participants. */
+  OPENTOK_DEPRECATED("Use otc_subscriber_media_link_stats instead")
+  int64_t sender_connection_estimated_bandwidth;   /**< @deprecated Use
+                                                  otc_subscriber_media_link_stats instead,
+                                                  which provides complete network metrics
+                                                  including visibility into the remote
+                                                  publisher's transport performance.
+                                                  The current bandwidth estimation
+                                                  for the sender connection.
+                                                  If no data is available, then -1 is
+                                                  returned. Currently, this feature only
+                                                  supports calls with more than two
+                                                  participants. */
+  int32_t width;                                   /**< Decoded video frame width */
+  int32_t height;                                  /**< Decoded video frame height */
+  double decoded_frame_rate;                       /**< Decoded frame rate (fps) */
+  int64_t bitrate;                                 /**< Bitrate (bps) */
+  int64_t total_bitrate;                           /**< Bitrate (bps), including RTP headers, padding and payload  */
+  int64_t pause_count; /**< Number of times the subscriber’s video playback has paused. Video is considered to be paused
+                          if time passed since last rendered frame exceeds 5 seconds. */
+  int64_t total_pauses_duration; /**< Cumulative duration (in milliseconds) of all video pauses. */
+  int64_t freeze_count; /**< Number of times the subscriber’s video has frozen. A freeze is defined according to
+                           https://www.w3.org/TR/webrtc-stats/#dom-rtcinboundrtpstreamstats-freezecount */
+  int64_t total_freezes_duration; /**< Cumulative duration (in milliseconds) of all video freezes. */
+  const char* codec;              /**< Current codec for this subscriber */
+};
+
+/**
+    This struct represents subscriber media link statistics, providing a unified view
+    of the transport-level network conditions for a subscriber. Since audio and video
+    share the same underlying transport, this struct consolidates the local transport,
+    remote publisher transport, and network degradation source into a single object.
+
+    Reported periodically by the {@link otc_subscriber_callbacks.on_media_link_stats}
+    callback function.
+ */
+struct otc_subscriber_media_link_stats {
+  otc_transport_stats transport;                  /**< Local transport/network statistics for this subscriber. */
+  otc_transport_stats remote_publisher_transport; /**< Remote publisher transport/network statistics. */
+  enum otc_network_degradation_source
+      network_degradation_source; /**< In case of network degradation, indicates which side caused it (local subscriber,
+                                     remote publisher, or unknown). */
 };
 
 /**
@@ -101,71 +174,72 @@ struct otc_subscriber_video_stats {
  @see otc_subscriber_set_rtc_stats_report_cb.
  */
 struct otc_subscriber_rtc_stats_report_cb {
-    /**
-     Pointer to user custom data bound to this struct.
-     */
-    void *user_data;
+  /**
+   Pointer to user custom data bound to this struct.
+   */
+  void* user_data;
 
-    /**
-     Defines the callback function for getting subscriber RTC stats reports.
-     @param subscriber The instance invoking this call.
-     @param user_data Pointer to user custom data bound to this struct.
-     @param json_array_of_reports Array of RTC stats reports for
-        the subscriber's stream. The structure of the JSON array is similar to
-        the format of the RtcStatsReport object implemented in web browsers (see
-        <a href="https://developer.mozilla.org/en-US/docs/Web/API/RTCStatsReport">Mozilla
-        docs</a>). Also see <a href="https://w3c.github.io/webrtc-stats/#summary">this
-        W3C documentation</a>.
+  /**
+   Defines the callback function for getting subscriber RTC stats reports.
+   @param subscriber The instance invoking this call.
+   @param user_data Pointer to user custom data bound to this struct.
+   @param json_array_of_reports Array of RTC stats reports for
+      the subscriber's stream. The structure of the JSON array is similar to
+      the format of the RtcStatsReport object implemented in web browsers (see
+      <a
+   href="https://developer.mozilla.org/en-US/docs/Web/API/RTCStatsReport">Mozilla
+      docs</a>). Also see <a
+   href="https://w3c.github.io/webrtc-stats/#summary">this W3C
+   documentation</a>.
 
-        Here is a partial sample:
+      Here is a partial sample:
 
-        <pre>
-        [
-           {
-              "audioLevel": 0,
-              "id": "RTCAudioSource_1",
-              "kind": "audio",
-              "timestamp": 1603448671532842,
-              "totalAudioEnergy": 0,
-              "totalSamplesDuration": 4.249999999999954,
-              "trackIdentifier": "4nP5yeIDzbUm6IJho5jkTps1lnfabsFvTXjH00",
-              "type": "media-source"
-          },
-          {
-              "base64Certificate": "MIIBFjCB...QIhAMIfr/NgvhNp16zaoHxGQGrID1STFmBSSSB4V1bxBrTU",
-              "fingerprint": "E7:5F:...:FA:5A:1F:A7:E0:55:60",
-              "fingerprintAlgorithm": "sha-256",
-              "id": "RTCCertificate_E7:5F:E5...F:1D:FA:5A:1F:A7:E0:55:60",
-              "timestamp": 1603448671532842,
-              "type": "certificate"
-          },
-          {
-              "channels": 1,
-              "clockRate": 8000,
-              "id": "RTCCodec_audio_Inbound_0",
-              "mimeType": "audio/PCMU",
-              "payloadType": 0,
-              "timestamp": 1603448671532842,
-              "type": "codec"
-          },
-          {
-              "channels": 2,
-              "clockRate": 48000,
-              "id": "RTCCodec_audio_Inbound_111",
-              "mimeType": "audio/opus",
-              "payloadType": 111,
-              "sdpFmtpLine": "minptime=10;useinbandfec=1",
-              "timestamp": 1603448671532842,
-              "type": "codec"
-          },
-        ]
-        </pre>
-     */
-    void(*on_rtc_stats_report)(otc_subscriber* subscriber,
-                         void *user_data,
-                         const char* json_array_of_reports);
+      <pre>
+      [
+         {
+            "audioLevel": 0,
+            "id": "RTCAudioSource_1",
+            "kind": "audio",
+            "timestamp": 1603448671532842,
+            "totalAudioEnergy": 0,
+            "totalSamplesDuration": 4.249999999999954,
+            "trackIdentifier": "4nP5yeIDzbUm6IJho5jkTps1lnfabsFvTXjH00",
+            "type": "media-source"
+        },
+        {
+            "base64Certificate":
+   "MIIBFjCB...QIhAMIfr/NgvhNp16zaoHxGQGrID1STFmBSSSB4V1bxBrTU", "fingerprint":
+   "E7:5F:...:FA:5A:1F:A7:E0:55:60", "fingerprintAlgorithm": "sha-256", "id":
+   "RTCCertificate_E7:5F:E5...F:1D:FA:5A:1F:A7:E0:55:60", "timestamp":
+   1603448671532842, "type": "certificate"
+        },
+        {
+            "channels": 1,
+            "clockRate": 8000,
+            "id": "RTCCodec_audio_Inbound_0",
+            "mimeType": "audio/PCMU",
+            "payloadType": 0,
+            "timestamp": 1603448671532842,
+            "type": "codec"
+        },
+        {
+            "channels": 2,
+            "clockRate": 48000,
+            "id": "RTCCodec_audio_Inbound_111",
+            "mimeType": "audio/opus",
+            "payloadType": 111,
+            "sdpFmtpLine": "minptime=10;useinbandfec=1",
+            "timestamp": 1603448671532842,
+            "type": "codec"
+        },
+      ]
+      </pre>
+   */
+  void (*on_rtc_stats_report)(otc_subscriber* subscriber,
+                              void* user_data,
+                              const char* json_array_of_reports);
 
-    void *reserved;
+  void* reserved;
 };
 
 /** Subscriber callback functions.
@@ -184,7 +258,8 @@ struct otc_subscriber_callbacks {
 
       @param subscriber The instance invoking this call.
       @param user_data Pointer to user custom data bound to this struct.
-      @param stream The stream associated with this event.
+      @param stream The subscriber's stream. The instance does not outlive the callback
+       function execution. Make sure you make a copy if this instance is used later.                                                                                                            
    */
   void (*on_connected)(otc_subscriber* subscriber,
                        void* user_data,
@@ -192,6 +267,9 @@ struct otc_subscriber_callbacks {
 
   /**
       Called when the subscriber's stream has been interrupted.
+      This callback is only invoked if reconnection feature is enabled,
+      followed by on_reconnected if the reconnection succeeds.
+      Regular interruptions when reconnection is not enabled are notified via on_error callback.
 
       @param subscriber The instance invoking this call.
       @param user_data Pointer to user custom data bound to this struct.
@@ -208,6 +286,11 @@ struct otc_subscriber_callbacks {
 
   /**
       Called when a new video frame for the subscriber is ready to be rendered.
+      <i>Do not</i> call any OpenTok API functions (except those in video_frame.h)
+      on the same thread that invokes this callback.
+      If you need to call an OpenTok API function (for example, functions in
+      publisher.h or subscriber.h),
+      reschedule its execution to a different thread.
 
       @param subscriber The instance invoking this call.
       @param user_data Pointer to user custom data bound to this struct.
@@ -274,13 +357,26 @@ struct otc_subscriber_callbacks {
   void (*on_video_disable_warning)(otc_subscriber* subscriber, void* user_data);
 
   /**
-      Called when the OpenTok Media Router determines that the stream quality
-      has improved to the point at which the video being disabled is not an
-      immediate risk.
+      Called when caption text for the subscriber's stream is available.
 
-      @param subscriber The instance invoking this call.
+      @param subscriber The subscriber instance.
       @param user_data Pointer to user custom data bound to this struct.
+      @param text Pointer to the caption text.
+      @param is_final Indicates whether a caption is finished. 
    */
+  void (*on_caption_text)(otc_subscriber* subscriber,
+                          void* user_data,
+                          const char* text,
+                          otc_bool is_final);
+
+  /**
+    Called when the OpenTok Media Router determines that the stream quality
+    has improved to the point at which the video being disabled is not an
+    immediate risk.
+
+    @param subscriber The instance invoking this call.
+    @param user_data Pointer to user custom data bound to this struct.
+ */
   void (*on_video_disable_warning_lifted)(otc_subscriber* subscriber,
                                           void* user_data);
 
@@ -323,12 +419,103 @@ struct otc_subscriber_callbacks {
       @param subscriber The instance invoking this call.
       @param user_data Pointer to user custom data bound to this struct.
       @param error_string A string containing the error message.
-      @param error_code Error code enum value.
+      @param error Error code enum value.
    */
   void (*on_error)(otc_subscriber* subscriber,
                    void* user_data,
                    const char* error_string,
                    enum otc_subscriber_error_code error);
+
+  /**
+      Called periodically to report the audio data of the subscriber. Received
+      audio properties can change dynamically. Causes for these changes are
+      audio codec negotiation, network conditions, etc. Consumers of the audio
+      data are responsible for handling these changes according to the use case
+      implemented (e.g. audio resampling).
+
+      @param subscriber The instance invoking this call.
+      @param user_data Pointer to user custom data bound to this struct.
+      @param audio_data The audio data.
+   */
+  void (*on_audio_data)(otc_subscriber* subscriber,
+                        void* user_data,
+                        const struct otc_audio_data* audio_data);
+
+  /**
+      This callback is invoked when a quality-related event is detected on the subscriber side.
+
+      The current implementation only triggers it in the event of a video interruption (pause), a codec change or a
+      resolution change. Freezes are tracked internally and exposed via statistics, but no callback is triggered for
+      each freeze due to their short duration and high potential frequency. A callback is triggered only when a pause is
+      detected (e.g., no frame rendered for 5+ seconds), as it represents a more significant disruption in media
+      playback.
+
+      The `reason` parameter indicates the cause of the event and is considered with the following priority order:
+      `OTC_VIDEO_REASON_VIDEO_INTERRUPT`, OTC_VIDEO_REASON_CODEC_CHANGE`, OTC_VIDEO_REASON_RESOLUTION_CHANGE`.
+
+      This event differs from `on_video_disabled` and `on_video_enabled` callbacks in that it reports video quality
+      relevant changes. `on_video_disabled` and `on_video_enabled only indicate that the subscriber’s video track has
+      been turned on or off (for example, due to a stream property update or audio-fallback). In contrast, this event
+      provides diagnostic information about quality degradation causes such as freezes, pause counts, and updated
+      statistics.
+
+      This callback considers all types of video interruptions lasting 5 seconds or longer. This means that, in the
+      particular case of audio fallback or stream property changes (such as video being disabled), besides triggering
+      the `on_video_disabled` and `on_video_enabled` callbacks, the interruption is also recorded as a pause in the
+      video statistics, and a corresponding video interruption quality
+
+      Applications can use this callback to respond to quality issues, such as updating the UI, logging telemetry, or
+      notifying the user.
+
+      @param subscriber The subscriber instance triggering the event.
+      @param stats The latest subscriber video statistics at the time of the event.
+      @param user_data Optional user data pointer passed when registering the callback.
+      @param reason The reason for the quality event, based on `otc_video_reason`.
+   */
+  void (*on_video_quality_changed)(otc_subscriber* subscriber,
+                                   void* user_data,
+                                   const struct otc_subscriber_video_stats* stats,
+                                   enum otc_video_reason reason);
+
+  /**
+      This callback is invoked when a network condition change is detected
+      for the subscriber or the remote publisher.
+
+      The current implementation triggers this callback only when the network
+      condition has changed for either side.
+
+      The `reason` parameter indicates the cause of the event and is currently
+      always `OTC_NETWORK_REASON_NETWORK_CONDITION_CHANGE`.
+
+      This event differs from `on_video_disabled` and `on_video_enabled` callbacks
+      in that it reports network health changes rather than changes in
+      the subscriber’s video track state. Applications can use this callback
+      to respond to network issues, such as updating UI, logging telemetry,
+      or triggering adaptive behavior.
+
+      @param subscriber The subscriber instance triggering the event.
+      @param user_data Optional user data pointer passed when registering the callback.
+      @param media_link_stats The media link statistics.
+      @param reason The reason for the network condition change.
+    */
+  void (*on_network_condition_changed)(otc_subscriber* subscriber,
+                                       void* user_data,
+                                       const struct otc_subscriber_media_link_stats* media_link_stats,
+                                       enum otc_network_reason reason);
+
+  /**
+      Called periodically to report media link statistics for the subscriber.
+
+      Media link statistics provide a unified view of the transport-level
+      network conditions.
+
+      @param subscriber The instance invoking this call.
+      @param user_data Pointer to user custom data bound to this struct.
+      @param media_link_stats A pointer to the media link stats struct.
+   */
+  void (*on_media_link_stats)(otc_subscriber* subscriber,
+                              void* user_data,
+                              const struct otc_subscriber_media_link_stats* media_link_stats);
 
   /**
       This struct member can point to data related to the subscriber
@@ -357,8 +544,8 @@ otc_subscriber_new(const otc_stream* stream,
                    const struct otc_subscriber_callbacks* callbacks);
 
 /**
-    Releases a subscriber instance, including all hardware and UI resources
-   bound to it.
+    Releases a subscriber instance, including all hardware and UI resources bound to it.
+    No callbacks in otc_subscriber_callbacks will be invoked as a result of invoking this method (or afterwards).
 
     @param subscriber The subcriber to be deleted.
     @return Return value indicating either error or success.
@@ -398,13 +585,35 @@ otc_subscriber_set_subscribe_to_audio(otc_subscriber* subscriber,
                                       otc_bool subscribe_to_audio);
 
 /**
+    Subscribes to captions for the stream.
+
+    @param subscriber The subscriber instance which will be affected.
+    @param subscribe_to_captions Whether to subscribe to captions or not.
+    @return Return value indicating either error or success.
+ */
+OTC_DECL(otc_status)
+otc_subscriber_set_subscribe_to_captions(otc_subscriber* subscriber,
+                                         otc_bool subscribe_to_captions);
+
+/**
+    Sets the preferred caption translation language for a given subscriber.
+    <p>
+    <i>This is a private beta feature.</i>
+
+    @param subscriber The subscriber instance which will be affected.
+    @param language A supported language code or null to disable translation.
+    @return Return value indicating either error or success.
+ */
+OTC_DECL(otc_status)
+otc_subscriber_set_captions_translation_language(otc_subscriber* subscriber, const char* language);
+
+/**
     Returns whether the subscriber is subscribed to the stream's video or not.
 
     @param subscriber The subscriber instance.
     @return Whether the subscriber is subscribed to the stream's video or not.
  */
-OTC_DECL(otc_bool)
-otc_subscriber_get_subscribe_to_video(const otc_subscriber* subscriber);
+OTC_DECL(otc_bool) otc_subscriber_get_subscribe_to_video(const otc_subscriber* subscriber);
 
 /**
     Returns whether the subscriber is subscribed to the stream's audio or not.
@@ -414,6 +623,17 @@ otc_subscriber_get_subscribe_to_video(const otc_subscriber* subscriber);
  */
 OTC_DECL(otc_bool)
 otc_subscriber_get_subscribe_to_audio(const otc_subscriber* subscriber);
+
+/**
+    Returns whether the subscriber is subscribed to the stream's captions
+    or not.
+
+    @param subscriber The subscriber instance.
+    @return Whether the subscriber is subscribed to the stream's captions
+    or not. The default value is the captions value of the stream's publisher {@link otc_publisher_get_publish_captions}
+ */
+OTC_DECL(otc_bool)
+otc_subscriber_get_subscribe_to_captions(const otc_subscriber* subscriber);
 
 /**
     Returns the {@link otc_session} associated this instance.
@@ -453,7 +673,35 @@ otc_subscriber_get_preferred_resolution(const otc_subscriber* subscriber,
                                         uint32_t* preferred_height);
 
 /**
+    Sets the audio volume, between 0 and 100, of the subscriber. If the value
+    is not in this range, it will be clamped to it.
+
+    @param subscriber The subscriber instance.
+    @param volume The volume of the subscriber.
+    @return Return value indicating either error or success.
+    @see otc_error_code
+ */
+OTC_DECL(otc_status)
+otc_subscriber_set_audio_volume(otc_subscriber* subscriber, double volume);
+
+/**
+    Returns the audio volume, between 0 and 100, of the subscriber.
+
+    The default value is 100.
+
+    @param subscriber The subscriber instance.
+    @param volume The volume of the subscriber.
+    @return Return value indicating either error or success.
+    @see otc_error_code
+ */
+OTC_DECL(otc_status)
+otc_subscriber_get_audio_volume(const otc_subscriber* subscriber,
+                                double* volume);
+
+/**
     Sets the preferred frame rate for the subscriber's stream.
+
+    The default value is 100.
 
     @param subscriber The subscriber instance which will be affected.
     @param preferred_framerate The preferred framerate of the subscriber.
@@ -496,8 +744,9 @@ otc_subscriber_get_subscriber_id(const otc_subscriber* subscriber);
 OTC_DECL(void*) otc_subscriber_get_user_data(const otc_subscriber* subscriber);
 
 /**
-    Gets the RTC stats report for the subscriber. This is an asynchronous operation.
-    create an otc_subscriber_rtc_stats_report_cb struct and pass it into the
+    Gets the RTC stats report for the subscriber. This is an asynchronous
+   operation. create an otc_subscriber_rtc_stats_report_cb struct and pass it
+   into the
     {@link otc_subscriber_set_rtc_stats_report_cb} function prior to calling
     this function. When the stats are available, the
     {@link otc_subscriber_set_rtc_stats_report_cb} callback function is called.
@@ -505,20 +754,37 @@ OTC_DECL(void*) otc_subscriber_get_user_data(const otc_subscriber* subscriber);
     Also see {@link otc_subscriber_callbacks.on_audio_stats},
     {@link otc_subscriber_callbacks.on_video_stats}, and
     {@link otc_publisher_get_rtc_stats_report}.
-    
+
     @param subscriber The subscriber.
  */
-OTC_DECL(otc_status) otc_subscriber_get_rtc_stats_report(const otc_subscriber *subscriber);
+OTC_DECL(otc_status)
+otc_subscriber_get_rtc_stats_report(const otc_subscriber* subscriber);
 
 /**
-   Sets the RTC stats report callback the subscriber. See otc_subscriber_get_rtc_stats_report.
+   Sets the RTC stats report callback the subscriber. See
+   otc_subscriber_get_rtc_stats_report.
 
    @param subscriber The subscriber instance.
 
-   @param cb The otc_subscriber_rtc_stats_report_cb struct that includes the callback function
-   for the RTC stats report.
+   @param cb The otc_subscriber_rtc_stats_report_cb struct that includes the
+   callback function for the RTC stats report.
  */
-OTC_DECL(otc_status) otc_subscriber_set_rtc_stats_report_cb(otc_subscriber *subscriber, struct otc_subscriber_rtc_stats_report_cb cb);
+OTC_DECL(otc_status)
+otc_subscriber_set_rtc_stats_report_cb(
+    otc_subscriber* subscriber,
+    struct otc_subscriber_rtc_stats_report_cb cb);
+
+/**
+    Gets the configured caption translation language for a given subscriber.
+    <p>
+    <i>This is a private beta feature.</i>
+
+
+    @param subscriber The subscriber instance.
+    @return The configured language for translation. It can be null if it isn't set.
+ */
+OTC_DECL(const char*)
+otc_subscriber_get_captions_translation_language(const otc_subscriber* subscriber);
 
 OTC_END_DECL
 

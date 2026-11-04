@@ -9,7 +9,48 @@
 
 #include "config.h"
 
+
 OTC_BEGIN_DECL
+
+/** Enum for reasons for a video to be started, stopped, resumed, etc.
+ */
+enum otc_video_reason {
+  OTC_VIDEO_REASON_NONE = 0,          /**< No quality degradation or notable video event. Default or unknown reason. */
+  OTC_VIDEO_REASON_PUBLISH_VIDEO = 1, /**< The client publishing the stream stopped streaming video. */
+  OTC_VIDEO_REASON_SUBSCRIBE_TO_VIDEO = 2,            /**< The local client stopped subscribing to video. */
+  OTC_VIDEO_REASON_QUALITY = 3,                       /**< The video event was caused by a change to
+                      the video stream quality. */
+  OTC_VIDEO_REASON_CODEC_NOT_SUPPORTED = 4,           /**< The video event was caused when
+              video in the subscriber stream was disabled because the stream uses a video
+              codec that is not supported on the device. */
+  OTC_VIDEO_REASON_QUALITY_DEGRADATION_BANDWIDTH = 5, /**< Quality degradation due to insufficient network bandwidth. */
+  OTC_VIDEO_REASON_QUALITY_DEGRADATION_CPU =
+      6, /**< Quality degradation caused by CPU limitations on the client device. */
+  OTC_VIDEO_REASON_QUALITY_DEGRADATION_OTHER = 7,  /**< Quality degradation caused by other reason */
+  OTC_VIDEO_REASON_CODEC_CHANGE = 8,               /**< Video codec has changed */
+  OTC_VIDEO_REASON_RESOLUTION_CHANGE = 9,          /**< Change in video resolution or number of layers
+                               This can occur due to bitrate constraints, encoder adaptation,
+          camera source changes (e.g., switching cameras or changing input resolution),
+          or configuration changes, and does not always imply quality degradation. */
+  OTC_VIDEO_REASON_VIDEO_INTERRUPTION = 10,        /**< Video interruption event */
+  OTC_VIDEO_REASON_SENDER_QUALITY_RESTRICTION = 11 /**< Sender restricted video quality */
+};
+
+/**
+ * Enum describing reasons impacting the network condition.
+ *
+ * These values indicate the primary factor affecting the current
+ * network condition assessment, such as bandwidth constraints,
+ * or packet loss.
+ */
+enum otc_network_reason {
+  OTC_NETWORK_REASON_NONE = 0,                    /**< No notable reason. */
+  OTC_NETWORK_REASON_UNKNOWN = 1,                 /**< Unknown reason. */
+  OTC_NETWORK_REASON_BANDWIDTH = 2,               /**< Network condition score impacted by bandwidth. */
+  OTC_NETWORK_REASON_PACKET_LOSS = 3,             /**< Network condition score impacted by packet loss. */
+  OTC_NETWORK_REASON_NETWORK_CONDITION_CHANGE = 4 /**< Indicates that the local or remote participant network condition
+             has changed. Triggered when a significant change is detected in the local or remote participant network. */
+};
 
 /**
     This enumeration includes commonly used constants.
@@ -34,12 +75,30 @@ enum otc_error_code {
       Generic error.
   */
   OTC_FATAL = 2,
+  /** Invalid video format
+
+      Raised when the capturer is configured with an invalid video format
+  */
+  OTC_INVALID_VIDEO_FORMAT = 3,
   /** Connection dropped error code.
 
      The connection to the OpenTok messaging server was dropped. Check the
      network connection.
    */
   OTC_CONNECTION_DROPPED = 1022,
+  /** Force disconnect error code.
+
+     Unable to successfully call {@link otc_session_force_disconnect}, perhaps
+     because of missing permissions.
+  */
+  OTC_UNABLE_TO_FORCE_DISCONNECT = 1520,
+  /** Force mute error code.
+
+      Unable to successfully  call {@link otc_session_force_mute_all} or
+      {@link otc_session_force_mute_stream}, perhaps because of missing
+      permissions.
+   */
+  OTC_UNABLE_TO_FORCE_MUTE = 1540,
   /** Connection time out error code.
 
       Time out while performing a connect action.
@@ -57,7 +116,7 @@ enum otc_error_code {
   OTC_UNKNOWN_SUBSCRIBER_INSTANCE = 2004,
   /** Video capture error code.
 
-      There was an error with videot capturer.
+      There was an error with the video capturer.
    */
   OTC_VIDEO_CAPTURE_FAILED = 3000,
   /** Acquiring video camera error code.
@@ -83,14 +142,15 @@ enum otc_error_code {
  */
 enum otc_log_level {
   OTC_LOG_LEVEL_DISABLED = 0, /**< No messages enum value. */
-  OTC_LOG_LEVEL_FATAL = 2,    /**< Fatal level messages. */
-  OTC_LOG_LEVEL_ERROR = 3,    /**< Error level messages. */
-  OTC_LOG_LEVEL_WARN = 4,     /**< Warning level messages. */
-  OTC_LOG_LEVEL_INFO = 5,     /**< Info level messages. */
-  OTC_LOG_LEVEL_DEBUG = 6,    /**< Debug level messages. */
-  OTC_LOG_LEVEL_MSG = 7,      /**< Message level messages. */
-  OTC_LOG_LEVEL_TRACE = 8,    /**< Trace level messages. */
-  OTC_LOG_LEVEL_ALL = 100     /**< All messages. */
+  OTC_LOG_LEVEL_ERROR = 1,    /**< Error level messages. */
+  OTC_LOG_LEVEL_WARN = 2,     /**< Warning level messages. */
+  OTC_LOG_LEVEL_INFO = 3,     /**< Info level messages. */
+  OTC_LOG_LEVEL_DEBUG = 4,    /**< Debug level messages. */
+  OTC_LOG_LEVEL_TRACE = 5,    /**< Trace level messages (most verbose). */
+
+  OTC_LOG_LEVEL_FATAL = OTC_LOG_LEVEL_ERROR, /**< DEPRECATED. */
+  OTC_LOG_LEVEL_MSG = OTC_LOG_LEVEL_DEBUG,   /**< DEPRECATED. */
+  OTC_LOG_LEVEL_ALL = OTC_LOG_LEVEL_TRACE    /**< DEPRECATED. */
 };
 
 /** Type definition for Boolean values.
@@ -98,6 +158,73 @@ enum otc_log_level {
     Useful type for variables to represent Boolean values (true and false).
  */
 typedef int otc_bool;
+
+/**
+  Type definition additional details to be provided in the
+  {@link otc_session_callbacks.on_mute_forced} function.
+ */
+typedef struct otc_on_mute_forced_info {
+  /**
+  Set to <code>OTC_TRUE</code> when a moderator has muted audio in the session; Set to
+  <code>OTC_FALSE</code> when a moderator disables the mute audio state in the session.
+  */
+  otc_bool active;
+} otc_on_mute_forced_info;
+
+/**
+ * @brief Estimated network condition score for a transport.
+ *
+ * This enum represents the overall health of the network connection for
+ * a given transport (local or remote). It is typically derived from metrics
+ * such as packet loss, and estimated available bandwidth.
+ * Higher values indicate better network conditions.
+ *
+ * OTC_NETWORK_CONDITION_WARNING and OTC_NETWORK_CONDITION_CRITICAL indicate
+ * degraded network conditions that may trigger audio fallback callbacks.
+ * If audio fallback is enabled, the SDK will notify via the corresponding
+ * callbacks, and in the CRITICAL state, video is disabled to preserve call stability.
+ */
+enum otc_network_condition {
+  OTC_NETWORK_CONDITION_UNKNOWN = 0,  /**< Network condition could not be determined */
+  OTC_NETWORK_CONDITION_CRITICAL = 1, /**< Severe network issues; audio fallback is triggered if enabled */
+  OTC_NETWORK_CONDITION_WARNING = 2,  /**< Poor network conditions; video quality is heavily impacted and
+       a video disable warning may be triggered if audio fallback is enabled */
+  OTC_NETWORK_CONDITION_FAIR = 3,     /**< Moderate network conditions; video quality may be restricted
+       by the media server or peer */
+  OTC_NETWORK_CONDITION_GOOD = 4,     /**< Good network conditions; minor temporary issues may occur */
+  OTC_NETWORK_CONDITION_EXCELLENT = 5 /**< Excellent network conditions; video quality is optimal and
+                                           estimated bandwidth can accommodate the maximum bitrate
+                                           for the current resolution */
+};
+
+/**
+ * Indicates the source of video/network degradation in the session.
+ *
+ * This enum identifies which side of the call is responsible for observed
+ * network issues impacting video quality. It complements per-transport
+ * network condition metrics.
+ */
+enum otc_network_degradation_source {
+  OTC_NETWORK_DEGRADATION_SOURCE_NONE = 0,        /**< No degradation detected; video quality is good. */
+  OTC_NETWORK_DEGRADATION_SOURCE_BOTH_OR_UNCLEAR, /**< Degradation detected, but the responsible side cannot be
+                                                     determined. */
+  OTC_NETWORK_DEGRADATION_SOURCE_LOCAL,           /**< Local network or transport is the cause of degradation. */
+  OTC_NETWORK_DEGRADATION_SOURCE_REMOTE           /**< Remot network or transport is the cause of degradation. */
+};
+
+/**
+  Provides network-level transport statistics.
+
+  The `otc_transport_stats` struct exposes metrics related to the underlying
+  network transport layer of a WebRTC connection. These stats reflect current
+  conditions such as estimated available bandwidth and can be used for
+  monitoring or debugging network performance issues.
+ */
+typedef struct otc_transport_stats {
+  int64_t connection_estimated_bandwidth; /**< Estimated available connection bandwidth, in bits per second (bps) */
+  enum otc_network_condition network_condition;   /**< Estimated network condition score */
+  enum otc_network_reason network_condition_reason; /**< Main reason impacting network condition */
+} otc_transport_stats;
 
 /**
     Type definition for statuses.
