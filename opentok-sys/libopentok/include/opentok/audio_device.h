@@ -20,8 +20,8 @@
     Then call otc_set_audio_device(const struct otc_audio_device_callbacks
    *callbacks) to associate the callbacks with the audio device to be used. You
    must call this function before you connect to a session. Additionally, this
-   is a global operation that must persist throughout the lifetime of the
-   session.
+   is a global operation that must persist throughout the lifetime of an
+   application.
 
     Call the {@link otc_audio_device_read_render_data} function to retrieve
     unrendered audio samples.
@@ -318,6 +318,34 @@ otc_audio_device_write_capture_data(const int16_t* buffer,
  */
 OTC_DECL(otc_status)
 otc_set_audio_device(const struct otc_audio_device_callbacks* callbacks);
+
+/**
+    Restarts audio input device.
+    This method must be called whenever a change in input device happens in the
+    custom audio device to let the SDK perform the necessary corrections for the
+    new device. Also this will trigger the following otc_audio_device_callbacks
+    methods in order:
+    - stop_capturer
+    - init_capturer (only if is_capturer_initialized returns false)
+    - start_capturer (only if is_capturer_started returns false)
+    @return Return value indicating either error or success.
+ */
+OTC_DECL(otc_status)
+otc_audio_device_restart_input();
+
+/**
+    Restarts audio output device.
+    This method must be called whenever a change in output device happens in the
+    custom audio device to let the SDK perform the necessary corrections for the
+    new device. Also this will trigger the following otc_audio_device_callbacks
+    methods in order:
+    - stop_renderer
+    - init_renderer (only if is_renderer_initialized returns false)
+    - start_renderer (only if is_renderer_started returns false)
+    @return Return value indicating either error or success.
+ */
+OTC_DECL(otc_status)
+otc_audio_device_restart_output();
 
 OTC_END_DECL
 

@@ -135,6 +135,8 @@ impl VideoCapturer {
             ptr: Default::default(),
             settings,
             callbacks: Arc::new(Mutex::new(callbacks)),
+            // `VideoCapturer` is `Send + Sync` through the unsafe impls above.
+            #[allow(clippy::arc_with_non_send_sync)]
             ffi_callbacks: Arc::new(Mutex::new(ffi::otc_video_capturer_callbacks {
                 init: None,
                 destroy: None,

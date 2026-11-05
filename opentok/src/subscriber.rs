@@ -325,11 +325,16 @@ impl Subscriber {
             on_audio_enabled: Some(on_audio_enabled),
             on_video_data_received: Some(on_video_data_received),
             on_video_disable_warning: Some(on_video_disable_warning),
+            on_caption_text: None,
             on_video_disable_warning_lifted: Some(on_video_disable_warning_lifted),
             on_audio_level_updated: Some(on_audio_level_updated),
             on_error: Some(on_error),
             on_audio_stats: None, // TODO
             on_video_stats: None, // TODO
+            on_audio_data: None,
+            on_video_quality_changed: None,
+            on_network_condition_changed: None,
+            on_media_link_stats: None,
             user_data: std::ptr::null_mut(),
             reserved: std::ptr::null_mut(),
         };

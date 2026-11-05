@@ -288,9 +288,17 @@ fn make_ffi_callback() -> ffi::otc_publisher_callbacks {
         on_stream_destroyed: Some(on_stream_destroyed),
         on_render_frame: Some(on_render_frame),
         on_audio_level_updated: Some(on_audio_level_updated),
+        on_publisher_mute_forced: None,
         on_audio_stats: None,
         on_video_stats: None,
         on_error: Some(on_error),
+        on_video_disabled: None,
+        on_video_enabled: None,
+        on_video_disable_warning: None,
+        on_video_disable_warning_lifted: None,
+        on_video_quality_changed: None,
+        on_network_condition_changed: None,
+        on_media_link_stats: None,
         user_data: std::ptr::null_mut(),
         reserved: std::ptr::null_mut(),
     }
@@ -304,17 +312,9 @@ impl Publisher {
         let ffi_callbacks = if callbacks.is_some() {
             make_ffi_callback()
         } else {
-            ffi::otc_publisher_callbacks {
-                on_stream_created: None,
-                on_stream_destroyed: None,
-                on_render_frame: None,
-                on_audio_level_updated: None,
-                on_audio_stats: None,
-                on_video_stats: None,
-                on_error: None,
-                user_data: std::ptr::null_mut(),
-                reserved: std::ptr::null_mut(),
-            }
+            // SAFETY: all fields are `Option<fn>` or raw pointers, for which all-zero means `None`/null,
+            // which is also what the SDK requires for unused callbacks
+            unsafe { std::mem::zeroed::<ffi::otc_publisher_callbacks>() }
         };
 
         let ptr =

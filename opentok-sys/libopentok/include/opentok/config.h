@@ -4,6 +4,7 @@
 #include <stdint.h>
 #ifndef _WIN32
 #include <sys/time.h>
+#include <dlfcn.h>
 #endif
 
 #ifdef WEBRTC_IOS
@@ -39,6 +40,26 @@
 #define IS_LINUX 1
 #else
 #define IS_LINUX 0
+#endif
+
+#ifdef _WIN32
+/*
+This prevents a warning treated as error that appears when building windows with
+SDL checks ON.
+VS suggests replacing strncpy calls with the safer alternative strncpy_s.
+Unfortunately the only way to completely ensure safety is to replace all strncpy
+functions with std::string alternatives.
+*/
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#endif
+
+#if defined(__clang__) || defined(__GNUC__)
+#define OPENTOK_DEPRECATED(msg) __attribute__((deprecated(msg)))
+#elif defined(_MSC_VER)
+#define OPENTOK_DEPRECATED(msg) __declspec(deprecated(msg))
+#else
+#define OPENTOK_DEPRECATED(msg)
 #endif
 
 #endif  // CONFIG_H

@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 pub enum LogLevel {
     /// No messages
     Disabled,
-    /// Fatal level messages
+    /// Fatal level messages (deprecated by the SDK, same as `Error`)
     Fatal,
     /// Error level messages
     Error,
@@ -20,11 +20,11 @@ pub enum LogLevel {
     Info,
     /// Debug level messages
     Debug,
-    /// Message level messages
+    /// Message level messages (deprecated by the SDK, same as `Debug`)
     Message,
     /// Trace level messages
     Trace,
-    /// All messages
+    /// All messages (deprecated by the SDK, same as `Trace`)
     All,
     #[doc(hidden)]
     __Unknown(u32),
@@ -33,15 +33,13 @@ pub enum LogLevel {
 impl From<ffi::otc_log_level> for LogLevel {
     fn from(value: ffi::otc_log_level) -> Self {
         match value {
+            // FATAL, MSG and ALL are deprecated aliases of ERROR, DEBUG and TRACE
             ffi::otc_log_level_OTC_LOG_LEVEL_DISABLED => Self::Disabled,
-            ffi::otc_log_level_OTC_LOG_LEVEL_FATAL => Self::Fatal,
             ffi::otc_log_level_OTC_LOG_LEVEL_ERROR => Self::Error,
             ffi::otc_log_level_OTC_LOG_LEVEL_WARN => Self::Warn,
             ffi::otc_log_level_OTC_LOG_LEVEL_INFO => Self::Info,
             ffi::otc_log_level_OTC_LOG_LEVEL_DEBUG => Self::Debug,
-            ffi::otc_log_level_OTC_LOG_LEVEL_MSG => Self::Message,
             ffi::otc_log_level_OTC_LOG_LEVEL_TRACE => Self::Trace,
-            ffi::otc_log_level_OTC_LOG_LEVEL_ALL => Self::All,
             _ => Self::__Unknown(value),
         }
     }

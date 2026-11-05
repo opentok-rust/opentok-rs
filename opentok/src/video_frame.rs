@@ -82,17 +82,11 @@ pub enum FramePlane {
 
 impl From<ffi::otc_video_frame_plane> for FramePlane {
     fn from(plane: ffi::otc_video_frame_plane) -> FramePlane {
+        // PACKED is an alias of Y, UV_INTERLEAVED and VU_INTERLEAVED are aliases of U
         match plane {
-            ffi::otc_video_frame_plane_OTC_VIDEO_FRAME_PLANE_PACKED => FramePlane::Packed,
-            ffi::otc_video_frame_plane_OTC_VIDEO_FRAME_PLANE_U => FramePlane::U,
-            ffi::otc_video_frame_plane_OTC_VIDEO_FRAME_PLANE_UV_INTERLEAVED => {
-                FramePlane::UvInterleaved
-            }
-            ffi::otc_video_frame_plane_OTC_VIDEO_FRAME_PLANE_V => FramePlane::V,
-            ffi::otc_video_frame_plane_OTC_VIDEO_FRAME_PLANE_VU_INTERLEAVED => {
-                FramePlane::VuInterleaved
-            }
             ffi::otc_video_frame_plane_OTC_VIDEO_FRAME_PLANE_Y => FramePlane::Y,
+            ffi::otc_video_frame_plane_OTC_VIDEO_FRAME_PLANE_U => FramePlane::U,
+            ffi::otc_video_frame_plane_OTC_VIDEO_FRAME_PLANE_V => FramePlane::V,
             _ => FramePlane::__Unknown,
         }
     }

@@ -30,6 +30,9 @@ typedef struct otc_session otc_session;
  */
 typedef struct otc_session_settings otc_session_settings;
 
+#define ENCRYPTION_SECRET_MINIMUM_LENGTH 8
+#define ENCRYPTION_SECRET_MAXIMUM_LENGTH 256
+
 /** Error code enumeration for OpenTok sessions.
 
     This enumeration represents several error codes associated with a session.
@@ -81,6 +84,9 @@ enum otc_session_error_code {
   OTC_SESSION_SIGNAL_TYPE_TOO_LONG =
       1414, /**< You attempted to send a signal with a type string that is
                greater than the maximum length. */
+  OTC_SESSION_UNABLE_TO_SEND_SIGNAL =
+      1550, /**< Unable to successfully send signal, perhaps because of missing
+               permissions (e.g., a publisher-only token). */
   OTC_SESSION_STATE_FAILED = 1020, /**< The connection timed out while
                                       attempting to get the session’s state. */
   OTC_SESSION_SUBSCRIBER_NOT_FOUND =
@@ -89,6 +95,12 @@ enum otc_session_error_code {
                associated with the session. */
   OTC_SESSION_UNEXPECTED_GET_SESSION_INFO_REPONSE =
       2001, /**< Unexpected response. */
+  OTC_SESSION_ENCRYPTION_SECRET_MISSING =
+      6000, /**< Tried to join an end-to-end encrypted session without an
+               encryption secret. */
+  OTC_SESSION_INVALID_ENCRYPTION_SECRET =
+      6004, /**< Tried to join an end-to-end encrypted session without an
+               encryption secret. */
 };
 
 /** Session capabilities.
@@ -98,6 +110,15 @@ enum otc_session_error_code {
 struct otc_session_capabilities {
   otc_bool publish; /**< Whether the client can publish streams to the session
     (OTC_TRUE) or not (OTC_FALSE). */
+  otc_bool subscribe; /**< Whether the client can subscribe to session streams
+    (OTC_TRUE) or not (OTC_FALSE). */
+  otc_bool force_mute; /**< Whether the client can mute other streams in
+    the session (OTC_TRUE) or not (OTC_FALSE). See
+    {@link otc_session_force_mute_all} and
+    {@link otc_session_force_mute_stream}. */
+  otc_bool force_disconnect; /**< Whether the client can disconnect other
+     connections in the session (OTC_TRUE) or not (OTC_FALSE). See
+      {@link otc_session_force_disconnected}. */
 };
 
 /** ICE server configuration.
@@ -119,7 +140,11 @@ struct otc_custom_ice_config {
        and TURN)   to establish media connectivity. */
   otc_bool use_custom_turn_only; /**< Whether the client will use custom TURN
      servers only (OTC_TRUE). When set to OTC_FALSE, the client will use both
-     OpenTok TURN servers and (if any are added) custom TURN servers. */
+     OpenTok TURN servers and (if any are added) custom TURN servers. */  
+  otc_bool filter_out_lan_candidates; /**< Whether the client will filter
+     out/remove host ICE candidate type in the same LAN to establish media
+     connectivity (OTC_TRUE). When set to OTC_FALSE, the client will use host
+     ICE candidate type in the same LAN too. */
 };
 
 /** Session signal options.
@@ -133,8 +158,9 @@ struct otc_signal_options {
     Upon reconnecting to the session, whether to send any signals that were
     initiated while disconnected. If your client loses its connection to
     the OpenTok session, due to a drop in network connectivity, the client
-    attempts to reconnect to the session, and the {@link
-    otc_session_callbacks.on_disconnected} callback function is invoked. By
+    attempts to reconnect to the session, and the
+    {@link otc_session_callbacks.on_disconnected}
+    callback function is invoked. By
     default, signals initiated while disconnected are sent when (and if) the
     client reconnects to the OpenTok session. You can prevent this by setting
     the retry_after_reconnect member to OTC_FALSE. (The default setting is
@@ -262,6 +288,22 @@ struct otc_session_callbacks {
                                       void* user_data,
                                       const otc_stream* stream,
                                       otc_bool has_video);
+  /**
+      Called when a stream toggles captions on or off.
+
+      @param session A pointer to the otc_session struct.
+
+      @param user_data A pointer to the user_data you set for the session.
+
+      @param stream A pointer to the otc_stream struct representing the stream.
+
+      @param has_captions Whether the stream now has captions (OTC_TRUE) or not
+     (OTC_FALSE).
+   */
+  void (*on_stream_has_captions_changed)(otc_session* session,
+                                         void* user_data,
+                                         const otc_stream* stream,
+                                         otc_bool has_captions);
 
   /**
       Called when the video dimensions of a stream in the session change.
@@ -308,7 +350,7 @@ struct otc_session_callbacks {
      @param signal The data string for the signal (if one was provided when
             the signal was sent).
 
-     @param connect The {@link otc_connection} representing the client that
+     @param connection The {@link otc_connection} representing the client that
             sent the signal.
    */
   void (*on_signal_received)(otc_session* session,
@@ -384,6 +426,22 @@ struct otc_session_callbacks {
                    enum otc_session_error_code error);
 
   /**
+    Called when a moderator mutes streams in the session or disables the mute state
+    in the session.
+
+     @param session A pointer to the otc_session struct.
+
+     @param user_data A pointer to the user_data you set for the session.
+
+     @param mute_info Check the <code>active</code> property of this struct. It is set to
+     <code>OTC_TRUE</code> when a moderator has muted audio in the session. It is set to
+     <code>OTC_FALSE</code> when a moderator disables the mute audio state in the session.
+   */
+  void (*on_mute_forced)(otc_session *session,
+                        void *user_data,
+                        otc_on_mute_forced_info *mute_info);
+
+  /**
       A pointer to data you set related to the session.
    */
   void* user_data;
@@ -403,8 +461,12 @@ struct otc_session_callbacks {
   otc_session struct with advanced options.
 
   @param apikey The API key for the OpenTok project. See
-         <a href="https://tokbox.com/account">See the your TokBox account
+         <a href="https://tokbox.com/account">See your Vonage Video API account
   page</a>.
+
+  <b>Important:</b> If you are using the Video API with a Vonage application
+  (instead of an OpenTok project), pass in the application ID (not an OpenTok
+  API key) for this parameter.
 
    @param session_id The session ID.
 
@@ -437,9 +499,15 @@ otc_session_new(const char* apikey,
     <li> {@link otc_session_settings_set_ip_whitelist} &mdash;
          Enable the IP whitelist feature.
     </li>
+    <li> {@link otc_session_settings_set_single_peer_connection} &mdash;
+         Enable the Single Peer Connection feature.
+    </li>
+    <li> {@link otc_session_settings_set_session_migration} &mdash;
+         Enable the Session Migration feature.
+    </li>
   </ul>
  */
-OTC_DECL(otc_session_settings*) otc_session_settings_new();
+OTC_DECL(otc_session_settings*) otc_session_settings_new(void);
 
 /**
   Prevent connection events, to support large interactive video sessions.
@@ -479,11 +547,45 @@ otc_session_settings_set_proxy_url(otc_session_settings* settings,
 /**
   Pass in OTC_TRUE to have the client use the IP address white list.
   <a href="https://tokbox.com/developer/enterprise/content/ip-addresses/">This
-  feature</a> is available as an add-on feature for Enterprise partners.
+  feature</a> is available as an add-on feature.
  */
 OTC_DECL(otc_status)
 otc_session_settings_set_ip_whitelist(otc_session_settings* settings,
                                       otc_bool ip_whitelist);
+
+/**
+ * @brief Enables or disables Single Peer Connection (SPC) for a session.
+ *
+ * Single Peer Connection (SPC) is a feature that encapsulates all subscriber connections to a single peer
+ * connection. The benefits of enabling SPC include reduced OS resource consumption, improved rate control,
+ * and, in case of mobile native devices, support for larger sessions.
+ * 
+ * SPC is disabled by default. When disabled, the session will use Multiple Peer Connection (MPC), where a
+ * separate peer connection is established between each endpoint.
+ *
+ * @param settings Pointer to the session settings object.
+ * @param enable Boolean flag to enable (OTC_TRUE) or disable (OTC_FALSE) SPC.
+ * @return otc_status Returns the status of the operation.
+ *
+ */
+OTC_DECL(otc_status)
+otc_session_settings_set_single_peer_connection(otc_session_settings* settings,
+                                                otc_bool enable);
+
+/**
+ * @brief Enables or disables Session Migration for a session.
+ *
+ * Enables the session migration feature, allowing the client to remain connected during server rotation.
+ * The default value is <code>false</code> (session migration is not enabled). For more information, see
+ * <a href="https://tokbox.com/developer/guides/server-rotation/">Server Rotation and Session Migration</a>.
+ *
+ * @param settings Pointer to the session settings object.
+ * @param enable Boolean flag to enable (OTC_TRUE) or disable (OTC_FALSE) Session Migration.
+ * @return otc_status Returns the status of the operation.
+ *
+ */
+OTC_DECL(otc_status)
+otc_session_settings_set_session_migration(otc_session_settings* settings, otc_bool enable);
 
 /**
   Deletes an {@link otc_session_settings} instance.
@@ -497,7 +599,7 @@ otc_session_settings_delete(otc_session_settings* settings);
  and the IP whitelist feature.
 
  @param apikey The API key for the OpenTok project. See
-        <a href="https://tokbox.com/account">See the your TokBox account
+        <a href="https://tokbox.com/account">See your Vonage Video API account
  page</a>.
 
   @param session_id The session ID.
@@ -520,6 +622,7 @@ otc_session_new_with_settings(const char* apikey,
 
 /**
     Releases resources associated with the session.
+    No callbacks in otc_session_callbacks will be invoked as a result of invoking this method (or afterwards).
 
     @param session The {@link otc_session} instance.
  */
@@ -542,7 +645,12 @@ otc_session_connect(otc_session* session, const char* token);
 
 /**
  Disconnects the client from this session. All of the client's subscribers
- and publishers will also be will be disconnected from the session.
+ and publishers will also be will be disconnected from the session. As a best
+ practice, before calling this function, call the {@link otc_session_unpublish}
+ function for all publishers and wait for the {@link otc_publisher_callbacks#on_stream_destroyed}
+ callback. This ensures the complete removal of publishers, especially
+ if network connectivity issues prevent removal due to the reconnection feature,
+ which may keep publisher streams alive for potential reconnection.
 
  @param session The {@link otc_session} struct representing
                 the OpenTok session to disconnect from.
@@ -632,11 +740,126 @@ otc_session_send_signal(otc_session* session,
                         const char* signal);
 
 /**
+  Forces all publishers in the session (except for those publishing excluded
+  streams) to mute audio.
+
+  Also, any streams that are published after the call to the {@link otc_session_force_mute_all}
+  function are published with audio muted. You can remove the mute state of a session by calling the
+  {@link otc_session_disable_force_mute} function. After you call the
+  {@link otc_session_disable_force_mute} function, new streams published to the session will
+  no longer have audio muted.
+
+  Calling this function causes the
+  {@link otc_session_callbacks#on_mute_forced otc_session_callback.on_mute_forced()} callback
+  function to be called in each client connected to the session, with the <code>active</code>
+  property of the {@link otc_on_mute_forced_info} struct passed into the function set to
+  <code>OTC_TRUE</code>. Also, the
+  {@link otc_publisher_callbacks#on_publisher_mute_forced otc_publisher_callbacks.on_publisher_mute_forced()}
+  callback function is called in each client publishing a muted stream.
+
+  Call the {@link otc_session_get_capabilities} function to see if the client
+  can call this function successfully. This is reserved for clients that
+  have connected with a token that has been assigned the moderator role (see the
+  (see the <a href="https://tokbox.com/developer/guides/create-token/">Token
+  creation overview</a>.
+
+  @param session The {@link otc_session} struct representing
+                 the OpenTok session.
+
+  @param excluded_streams_ids A pointer to an array of stream ID strings for
+         the streams to be muted. Set this to nullptr to mute all streams
+         in the session (including those published by the local client).
+
+  @param excluded_streams_len The length of the excluded stream array.
+
+  @return Return value indicating either error or success.
+ */
+OTC_DECL(otc_status)
+otc_session_force_mute_all(otc_session *session,
+                           const char** excluded_streams_ids,
+                           const int excluded_streams_len);
+
+/**
+Disables the active mute state of the session. After you call this method, new streams
+published to the session will no longer have audio muted.
+
+After you call the {@link otc_session_force_mute_all()} function (or a moderator
+in another client makes a call to mute all streams), any streams published after the moderation
+call are published with audio muted. Call the {@link otc_session_disable_force_mute} function
+to remove the mute state of a session (so that new published streams are not automatically muted).
+
+Calling this function causes the
+{@link otc_session_callbacks#on_mute_forced otc_session_callback.on_mute_forced()} callback
+function to be called in each client connected to the session, with the <code>active</code>
+property of the {@link otc_on_mute_forced_info} struct passed into the function set to
+<code>OTC_FALSE</code>.
+
+Call the {@link otc_session_get_capabilities} function to see if the client
+can call this function successfully. This is reserved for clients that
+have connected with a token that has been assigned the moderator role (see the
+<a href="https://tokbox.com/developer/guides/create-token/">Token creation overview</a>.
+
+ @param session The {@link otc_session} struct representing
+                 the OpenTok session.
+
+ @return Return value indicating either error or success.
+*/
+OTC_DECL(otc_status)
+otc_session_disable_force_mute(otc_session *session);
+
+
+/**
+  Forces the publisher of a specified stream to mute its audio.
+
+  Calling this function causes the
+  {@link otc_publisher_callbacks#on_publisher_mute_forced otc_publisher_callbacks.on_publisher_mute_forced()}
+  callback function to be called in the client publishing the muted stream.
+
+  Call the {@link otc_session_get_capabilities} function to see if the client
+  can call this function successfully. This is reserved for clients that
+  have connected with a token that has been assigned the moderator role (see the
+  (see the <a href="https://tokbox.com/developer/guides/create-token/">Token
+  creation overview</a>.
+
+  @param session The {@link otc_session} struct representing
+                 the OpenTok session.
+
+  @param stream_id_to_mute The stream ID string for the stream to be muted.
+
+  @return Return value indicating either error or success.
+ */
+OTC_DECL(otc_status)
+otc_session_force_mute_stream(const otc_session *session,
+                              const char *stream_id_to_mute);
+
+/**
+ * Forces a client to disconnect from the session.
+ *
+ * While you can use this function to terminate
+ * your own connection, calling {@link otc_session_disconnect} is simpler.
+ * An error is returned if the client's role does not include permissions
+ * required to force other users to disconnect. You define a client's role when
+ * you create the user token. When a connection is terminated using this
+ * function, {@link otc_session_callbacks#on_disconnected,
+ * {@link otc_session_callbacks#on_connection_dropped}
+ * and {@link otc_publisher_callbacks#on_stream_destroyed} callbacks are
+ * dispatched in the same way as they would be if the connection had
+ * terminated itself using {@link otc_session_disconnect}.
+ *
+ * @param session The otc_session that the connection is part of
+ * @param connection The connection to disconnect
+ * @return An error in the event of an error otherwise OTC_SUCCESS
+ *
+ */
+OTC_DECL(otc_status)
+otc_session_force_disconnect(const otc_session* session, const otc_connection* connection);
+
+/**
   Sends a signal to a specific client connected to the session.
   See {@link otc_session_send_signal_to_connection_with_options},
-  {@link otc_session_send_signal}, and {@link
-  otc_session_send_signal_with_options}. Also see the <a
-  href="https://tokbox.com/developer/guides/signaling/"> Signaling overview</a>.
+  {@link otc_session_send_signal}, and
+  {@link otc_session_send_signal_with_options}. Also see the
+  <a href="https://tokbox.com/developer/guides/signaling/">Signaling overview</a>.
 
   @param session The {@link otc_session} struct representing
                  the OpenTok session.
@@ -658,10 +881,10 @@ otc_session_send_signal_to_connection(otc_session* session,
 
 /**
   Sends a signal to all clients connected to the session, with specified
-  options. See {@link otc_session_send_signal}, {@link
-  otc_session_send_signal_to_connection}, and {@link
-  otc_session_send_signal_to_connection_with_options}. Also see the <a
-  href="https://tokbox.com/developer/guides/signaling/"> Signaling overview</a>.
+  options. See {@link otc_session_send_signal},
+  {@link otc_session_send_signal_to_connection}, and
+  {@link otc_session_send_signal_to_connection_with_options}. Also see the
+  <a href="https://tokbox.com/developer/guides/signaling/">Signaling overview</a>.
 
   @param session The {@link otc_session} struct representing
                  the OpenTok session.
@@ -683,10 +906,10 @@ otc_session_send_signal_with_options(otc_session* session,
 
 /**
   Sends a signal to a specific client, with specified options.
-  See {@link otc_session_send_signal}, {@link
-  otc_session_send_signal_to_connection}, and {@link
-  otc_session_send_signal_with_options}. Also see the <a
-  href="https://tokbox.com/developer/guides/signaling/"> Signaling overview</a>.
+  See {@link otc_session_send_signal},
+  {@link otc_session_send_signal_to_connection}, and
+  {@link otc_session_send_signal_with_options}. Also see the
+  <a href="https://tokbox.com/developer/guides/signaling/"> Signaling overview</a>.
 
   @param session The {@link otc_session} struct representing
                  the OpenTok session.
@@ -770,6 +993,23 @@ otc_session_get_capabilities(const otc_session* session);
   @return A pointer to the user data.
  */
 OTC_DECL(void*) otc_session_get_user_data(const otc_session* session);
+
+/**
+ * @brief Sets the end-to-end encryption secret that will be used by all
+ * publishers and subscribers in the session.
+ *
+ * See the
+ * <a
+ href="https://tokbox.com/developer/guides/end-to-end-encryption/">End-to-end
+ * encryption developer guide</a>.
+ *
+ * @param session The {@link otc_session} struct representing
+                  the OpenTok session.
+ * @param[in] secret Value for the encryption secret.
+ * @return Return value indicating either error or success.
+ */
+OTC_DECL(otc_status)
+otc_session_set_encryption_secret(otc_session* session, const char* secret);
 
 OTC_END_DECL
 

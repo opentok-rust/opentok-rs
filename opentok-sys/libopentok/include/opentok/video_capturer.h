@@ -122,6 +122,38 @@ otc_video_capturer_provide_frame(const otc_video_capturer* capturer,
                                  int rotation,
                                  const otc_video_frame* frame);
 
+/**
+   Defines values for the <code>content_hint</code> parameter of
+   the {@link otc_video_capturer_set_content_hint} function.
+ */
+enum otc_video_capturer_content_hint_type {
+  OTC_VIDEO_CAPTURER_CONTENT_HINT_TYPE_NONE =
+      0, /**< No hint provided. Default value "none" will be used. */
+  OTC_VIDEO_CAPTURER_CONTENT_HINT_TYPE_MOTION = 1, /**< value = "motion" */
+  OTC_VIDEO_CAPTURER_CONTENT_HINT_TYPE_DETAIL = 2, /**< value = "detail". */
+  OTC_VIDEO_CAPTURER_CONTENT_HINT_TYPE_TEXT = 3,   /**< value = "text". */
+};
+
+/**
+ * Sets the video content hint to one of the enum values in
+ * otc_video_capturer_content_hint_type. If the API receives any value other
+ * than the enum values specified above, then we log a warning about the same.
+ * @param capturer The pointer to the capturer
+ * @param content_hint Enum value of type otc_video_capturer_content_hint_type.
+ * @return Return value indicating either failure or success.
+ * */
+OTC_DECL(otc_status)
+const otc_video_capturer_set_content_hint(
+    const otc_video_capturer* capturer,
+    enum otc_video_capturer_content_hint_type content_hint);
+
+/** Returns the content_hint value for the capturer video source.
+ *  @param capturer The pointer to the capturer.
+ *  @return Enum value of type otc_video_capturer_content_hint_type
+ */
+OTC_DECL(enum otc_video_capturer_content_hint_type)
+const otc_video_capturer_get_content_hint(const otc_video_capturer* capturer);
+
 OTC_END_DECL
 
 #endif  // VIDEO_CAPTURER_H
